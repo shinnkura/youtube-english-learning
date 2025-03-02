@@ -22,7 +22,8 @@ export async function GET(request: Request) {
 
     // 英語の字幕トラックを探す
     const englishCaption = captionsData.items.find(
-      (item: any) => item.snippet.language === "en"
+      (item: { snippet: { language: string } }) =>
+        item.snippet.language === "en"
     );
 
     if (!englishCaption) {
