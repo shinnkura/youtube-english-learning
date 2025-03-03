@@ -35,7 +35,7 @@ export function YouTubePlayer({ videoId, onEnd }: YouTubePlayerProps) {
       modestbranding: 1,
       rel: 0,
     },
-  };
+  } as const;
 
   const handleReady = (event: YouTubeEvent) => {
     playerRef.current = event.target;
