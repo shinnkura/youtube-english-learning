@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import YouTubePlayerFactory from "youtube-player";
-import type { YouTubePlayer } from "youtube-player/dist/types";
+import React, { useEffect, useRef } from "react";
+import YouTube, {
+  YouTubeEvent,
+  YouTubePlayer as YTPlayer,
+} from "react-youtube";
 
 interface YouTubePlayerProps {
   videoId: string;
@@ -10,51 +12,59 @@ interface YouTubePlayerProps {
 }
 
 export function YouTubePlayer({ videoId, onEnd }: YouTubePlayerProps) {
-  const playerRef = useRef<YouTubePlayer | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isReady, setIsReady] = useState(false);
+  const playerRef = useRef<YTPlayer | null>(null);
 
   useEffect(() => {
-    if (!containerRef.current) return;
-
-    playerRef.current = YouTubePlayerFactory(containerRef.current, {
-      videoId,
-      playerVars: {
-        autoplay: 1,
-        modestbranding: 1,
-        rel: 0,
-      },
-    });
-
-    playerRef.current.on("ready", () => {
-      setIsReady(true);
-    });
-
-    if (onEnd) {
-      playerRef.current.on("stateChange", (event) => {
-        if (event.data === 0) {
-          // 動画終了
-          onEnd();
-        }
-      });
-    }
-
+    // クリーンアップ関数
     return () => {
-      if (playerRef.current) {
-        playerRef.current.destroy();
+      if (playerRef.current?.getIframe()) {
+        try {
+          playerRef.current.destroy();
+        } catch (error) {
+          console.warn("YouTube player cleanup warning:", error);
+        }
       }
     };
-  }, [videoId, onEnd]);
+  }, []);
 
-  useEffect(() => {
-    if (isReady && playerRef.current) {
-      playerRef.current.loadVideoById(videoId);
+  const opts = {
+    height: "500",
+    width: "100%",
+    playerVars: {
+      autoplay: 1,
+      modestbranding: 1,
+      rel: 0,
+    },
+  };
+
+  const handleReady = (event: YouTubeEvent) => {
+    playerRef.current = event.target;
+  };
+
+  const handleError = (error: YouTubeEvent) => {
+    console.warn("YouTube player error:", error);
+    // エラーが発生した場合でも動画の再生を試みる
+    if (playerRef.current?.getIframe()) {
+      try {
+        playerRef.current.playVideo();
+      } catch (e) {
+        console.error("Failed to recover from error:", e);
+      }
     }
-  }, [videoId, isReady]);
+  };
 
   return (
-    <div className="aspect-video w-full">
-      <div ref={containerRef} className="h-full w-full" />
+    <div className="relative pt-[56.25%]">
+      <div className="absolute top-0 left-0 w-full h-full">
+        <YouTube
+          videoId={videoId}
+          opts={opts}
+          onReady={handleReady}
+          onEnd={onEnd}
+          onError={handleError}
+          className="w-full h-full"
+        />
+      </div>
     </div>
   );
 }

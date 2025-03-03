@@ -13,6 +13,44 @@ export function Home() {
   const [transcript, setTranscript] = useState<string>("");
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
 
+  const fetchTranscriptAndVideo = async (channelId: string) => {
+    try {
+      const response = await fetch(`/api/videos?channelId=${channelId}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "動画の取得に失敗しました");
+      }
+
+      if (!data.videoId) {
+        throw new Error("このチャンネルには動画がありません");
+      }
+
+      setVideoId(data.videoId);
+
+      const transcriptResponse = await fetch(
+        `/api/transcript?videoId=${data.videoId}`
+      );
+      const transcriptData = await transcriptResponse.json();
+
+      if (!transcriptResponse.ok) {
+        throw new Error(transcriptData.error || "字幕の取得に失敗しました");
+      }
+
+      setTranscript(transcriptData.transcript);
+      setIsUrlSubmitted(true);
+      return true;
+    } catch (err) {
+      console.error("エラーの詳細:", err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "エラーが発生しました。もう一度お試しください。"
+      );
+      return false;
+    }
+  };
+
   const handleUrlSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -25,47 +63,22 @@ export function Home() {
       return;
     }
 
-    try {
-      const response = await fetch(`/api/videos?channelId=${channelId}`);
-      if (!response.ok) throw new Error("動画の取得に失敗しました");
-
-      const data = await response.json();
-      if (!data.videoId) {
-        setError("このチャンネルには動画がありません");
-        return;
-      }
-
-      setVideoId(data.videoId);
-
-      // 字幕を取得
-      const transcriptResponse = await fetch(
-        `/api/transcript?videoId=${data.videoId}`
-      );
-      if (!transcriptResponse.ok) {
-        const errorData = await transcriptResponse.json();
-        throw new Error(errorData.error || "字幕の取得に失敗しました");
-      }
-
-      const transcriptData = await transcriptResponse.json();
-      setTranscript(transcriptData.transcript);
-      setIsUrlSubmitted(true);
-    } catch (err) {
-      console.error(err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "エラーが発生しました。もう一度お試しください。"
-      );
-    }
+    await fetchTranscriptAndVideo(channelId);
   };
 
   const handlePlayVideo = () => {
     setIsVideoPlaying(true);
   };
 
-  const handleVideoEnd = () => {
+  const handleVideoEnd = async () => {
+    const channelId = getChannelIdFromUrl(channelUrl);
+    if (!channelId) return;
+
     setIsVideoPlaying(false);
-    handleUrlSubmit({ preventDefault: () => {} } as React.FormEvent);
+    const success = await fetchTranscriptAndVideo(channelId);
+    if (success) {
+      setIsVideoPlaying(true);
+    }
   };
 
   return (
@@ -113,6 +126,10 @@ export function Home() {
       {isVideoPlaying && videoId && (
         <div className="max-w-3xl mx-auto">
           <YouTubePlayer videoId={videoId} onEnd={handleVideoEnd} />
+          <div className="mt-4 bg-gray-50 rounded-lg p-6">
+            <h2 className="text-xl font-bold mb-4">字幕</h2>
+            <div className="whitespace-pre-wrap">{transcript}</div>
+          </div>
         </div>
       )}
     </main>
